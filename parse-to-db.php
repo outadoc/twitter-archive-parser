@@ -1,11 +1,15 @@
 <?php
 
+//the @username of the user; this should be the one present in the name of the files, e.g: outadoc-tweets.txt
 $username = 'outadoc';
+//the timezone of the user, to make the timestamps correspond
 date_default_timezone_set('Europe/Paris');
 
+//connecting to the sqlite database
 $db = new PDO('sqlite:twitter.sqlite');
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+//we're deleting all the existent tables before parsing, be careful with your data
 $db->exec("DROP TABLE IF EXISTS tweets");
 $db->exec("DROP TABLE IF EXISTS user");
 $db->exec("DROP TABLE IF EXISTS dms");
@@ -13,6 +17,7 @@ $db->exec("DROP TABLE IF EXISTS favorites");
 $db->exec("DROP TABLE IF EXISTS followers");
 $db->exec("DROP TABLE IF EXISTS following");
 
+//create the tables for the data
 $db->exec("CREATE TABLE tweets (id INTEGER PRIMARY KEY, status_id INTEGER, created_at INTEGER, created_via VARCHAR(20), text VARCHAR(140))");
 $db->exec("CREATE TABLE user (id INTEGER PRIMARY KEY, user_id INTEGER, created_at INTEGER, updated_at INTEGER, email VARCHAR(80), created_via VARCHAR(20), screen_name VARCHAR(21), time_zone VARCHAR(20))");
 $db->exec("CREATE TABLE dms (id INTEGER PRIMARY KEY, sender_id INTEGER, recipient_id INTEGER, text VARCHAR(140), created_at INTEGER)");
@@ -20,17 +25,28 @@ $db->exec("CREATE TABLE favorites (id INTEGER PRIMARY KEY, author_name VARCHAR(2
 $db->exec("CREATE TABLE followers (id INTEGER PRIMARY KEY, username VARCHAR(20))");
 $db->exec("CREATE TABLE following (id INTEGER PRIMARY KEY, username VARCHAR(20))");
 
+//function to get the content of a file
 function get_file_content($file_suffix) {
 	global $username;
+	//e.g. archive/outadoc-tweets.txt
 	$handle = fopen('archive/' . $username . '-' . $file_suffix . '.txt', 'r');
 	
 	while(($buffer = fgets($handle)) !== false) {
+		//reading all the content, line by line
 		$content .= $buffer;
 	}
 	
 	return $content;
 }
 
+/* function to parse data from the files formatted this way:
+ *
+ * *******************
+ * lorem: ipsum
+ * foo: bar
+ * mine: craft
+ *
+ */
 function parse_from_structured_file($file_suffix, $fields_count, $callback) {
 	$content = get_file_content($file_suffix);
 	$matches = null;
@@ -55,6 +71,7 @@ function parse_from_structured_file($file_suffix, $fields_count, $callback) {
 	echo 'parsed ' . $file_suffix . PHP_EOL;
 }
 
+//function to parse data from the files containing a list of status URLs
 function parse_from_listed_urls($file_suffix, $callback) {
 	$content = get_file_content($file_suffix);
 	$matches = null;
@@ -71,6 +88,7 @@ function parse_from_listed_urls($file_suffix, $callback) {
 	echo 'parsed ' . $file_suffix . PHP_EOL;
 }
 
+//function to parse data from the files containing a list of data (e.g. usernames)
 function parse_from_nlsv($file_suffix, $callback) {
 	$content = get_file_content($file_suffix);
 	$data = explode("\n", $content);
@@ -84,6 +102,7 @@ function parse_from_nlsv($file_suffix, $callback) {
 	echo 'parsed ' . $file_suffix . PHP_EOL;
 }
 
+//starting the parsing of the tweets
 parse_from_structured_file('tweets', 5, function($data) {
 	global $db;
 	$query = $db->prepare('INSERT INTO tweets (status_id, created_at, created_via, text) VALUES (?,?,?,?)');
@@ -95,6 +114,7 @@ parse_from_structured_file('tweets', 5, function($data) {
 	));
 });
 
+//starting the parsing of the user info
 parse_from_structured_file('user', 8, function($data) {
 	global $db;
 	$query = $db->prepare('INSERT INTO user (user_id, created_at, updated_at, email, created_via, screen_name, time_zone) VALUES (?,?,?,?,?,?,?)');
@@ -109,6 +129,7 @@ parse_from_structured_file('user', 8, function($data) {
 	));
 });
 
+//starting the parsing of the direct messages
 parse_from_structured_file('dms', 4, function($data) {
 	global $db;
 	$query = $db->prepare('INSERT INTO dms (sender_id, recipient_id, text, created_at) VALUES (?,?,?,?)');
@@ -120,6 +141,7 @@ parse_from_structured_file('dms', 4, function($data) {
 	));
 });
 
+//starting the parsing of the favorite tweets
 parse_from_listed_urls('favorites', function($data) {
 	global $db;
 	$query = $db->prepare('INSERT INTO favorites (author_name, status_id) VALUES (?,?)');
@@ -129,12 +151,14 @@ parse_from_listed_urls('favorites', function($data) {
 	));
 });
 
+//starting the parsing of the followers list
 parse_from_nlsv('followers', function($data) {
 	global $db;
 	$query = $db->prepare('INSERT INTO followers (username) VALUES (?)');
 	$query->execute(array($data));
 });
 
+//starting the parsing of the following list
 parse_from_nlsv('following', function($data) {
 	global $db;
 	$query = $db->prepare('INSERT INTO following (username) VALUES (?)');
