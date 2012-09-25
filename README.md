@@ -9,6 +9,6 @@ Currently, this tool is only able to make a database out of your Twitter archive
 - A web server installed on your machine (Apache + PHP)
 
 ## How to use
-1/ Copy the files of this project to your web server (any subdirectory /should/ work)
-2/ Access http://your-server.foo/path/to/the/tool/install/ from your browser
-3/ Follow the instructions :)
+1. Copy the files of this project to your web server (any subdirectory /should/ work)
+2. Access http://your-server.foo/path/to/the/tool/install/ from your browser
+3. Follow the instructions :)
