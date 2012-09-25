@@ -1,42 +1,58 @@
 <?php
 
-//the @username of the user; this should be the one present in the name of the files, e.g: outadoc-tweets.txt
-$username = 'outadoc';
+//parameters: $_GET['username'] = the @username of the user; this should be the one present in the name of the files, e.g: outadoc-tweets.txt
+
 //the timezone of the user, to make the timestamps correspond
 date_default_timezone_set('Europe/Paris');
 
-//connecting to the sqlite database
-$db = new PDO('sqlite:twitter.sqlite');
-$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-//we're deleting all the existent tables before parsing, be careful with your data
-$db->exec("DROP TABLE IF EXISTS tweets");
-$db->exec("DROP TABLE IF EXISTS user");
-$db->exec("DROP TABLE IF EXISTS dms");
-$db->exec("DROP TABLE IF EXISTS favorites");
-$db->exec("DROP TABLE IF EXISTS followers");
-$db->exec("DROP TABLE IF EXISTS following");
+/***** DATABASE CONNECTION *****/
 
-//create the tables for the data
-$db->exec("CREATE TABLE tweets (id INTEGER PRIMARY KEY, status_id INTEGER, created_at INTEGER, created_via VARCHAR(20), text VARCHAR(140))");
-$db->exec("CREATE TABLE user (id INTEGER PRIMARY KEY, user_id INTEGER, created_at INTEGER, updated_at INTEGER, email VARCHAR(80), created_via VARCHAR(20), screen_name VARCHAR(21), time_zone VARCHAR(20))");
-$db->exec("CREATE TABLE dms (id INTEGER PRIMARY KEY, sender_id INTEGER, recipient_id INTEGER, text VARCHAR(140), created_at INTEGER)");
-$db->exec("CREATE TABLE favorites (id INTEGER PRIMARY KEY, author_name VARCHAR(20), status_id INTEGER)");
-$db->exec("CREATE TABLE followers (id INTEGER PRIMARY KEY, username VARCHAR(20))");
-$db->exec("CREATE TABLE following (id INTEGER PRIMARY KEY, username VARCHAR(20))");
+
+try {
+	//connecting to the sqlite database
+	$db = new PDO('sqlite:../../db/twitter.sqlite');
+	$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	
+	//we're deleting all the existent tables before parsing, be careful with your data
+	$db->exec("DROP TABLE IF EXISTS tweets");
+	$db->exec("DROP TABLE IF EXISTS user");
+	$db->exec("DROP TABLE IF EXISTS dms");
+	$db->exec("DROP TABLE IF EXISTS favorites");
+	$db->exec("DROP TABLE IF EXISTS followers");
+	$db->exec("DROP TABLE IF EXISTS following");
+	
+	//create the tables for the data
+	$db->exec("CREATE TABLE tweets (id INTEGER PRIMARY KEY, status_id INTEGER, created_at INTEGER, created_via VARCHAR(20), text VARCHAR(140))");
+	$db->exec("CREATE TABLE user (id INTEGER PRIMARY KEY, user_id INTEGER, created_at INTEGER, updated_at INTEGER, email VARCHAR(80), created_via VARCHAR(20), screen_name VARCHAR(21), real_name VARCHAR(30), time_zone VARCHAR(20))");
+	$db->exec("CREATE TABLE dms (id INTEGER PRIMARY KEY, sender_id INTEGER, recipient_id INTEGER, text VARCHAR(140), created_at INTEGER)");
+	$db->exec("CREATE TABLE favorites (id INTEGER PRIMARY KEY, author_name VARCHAR(20), status_id INTEGER)");
+	$db->exec("CREATE TABLE followers (id INTEGER PRIMARY KEY, username VARCHAR(20))");
+	$db->exec("CREATE TABLE following (id INTEGER PRIMARY KEY, username VARCHAR(20))");
+} catch (PDOException $e) {
+	echo 'error:' . $e;
+	exit();
+}
+
+/***** FUNCTIONS DEFINITIONS *****/
+
 
 //function to get the content of a file
 function get_file_content($file_suffix) {
-	global $username;
 	//e.g. archive/outadoc-tweets.txt
-	$handle = fopen('archive/' . $username . '-' . $file_suffix . '.txt', 'r');
-	
-	while(($buffer = fgets($handle)) !== false) {
-		//reading all the content, line by line
-		$content .= $buffer;
+	try {
+		$handle = fopen('../tmp/' . $_GET['username']. '-' . $file_suffix . '.txt', 'r');
+		
+		while(($buffer = fgets($handle)) !== false) {
+			//reading all the content, line by line
+			$content .= $buffer;
+		}
+		
+		return $content;
+	} catch (Exception $e) {
+		echo 'error:' . $e;
+		exit();
 	}
-	
-	return $content;
 }
 
 /* function to parse data from the files formatted this way:
@@ -67,8 +83,6 @@ function parse_from_structured_file($file_suffix, $fields_count, $callback) {
 		$callback($data);
 		$i++;
 	}
-	
-	echo 'parsed ' . $file_suffix . PHP_EOL;
 }
 
 //function to parse data from the files containing a list of status URLs
@@ -84,8 +98,6 @@ function parse_from_listed_urls($file_suffix, $callback) {
 			"status_id" => $matches[2][$i],
 		));
 	}
-	
-	echo 'parsed ' . $file_suffix . PHP_EOL;
 }
 
 //function to parse data from the files containing a list of data (e.g. usernames)
@@ -98,9 +110,11 @@ function parse_from_nlsv($file_suffix, $callback) {
 			$callback($value);
 		}
 	}
-	
-	echo 'parsed ' . $file_suffix . PHP_EOL;
 }
+
+
+/***** PARSE EVERYTHING *****/
+
 
 //starting the parsing of the tweets
 parse_from_structured_file('tweets', 5, function($data) {
@@ -164,5 +178,7 @@ parse_from_nlsv('following', function($data) {
 	$query = $db->prepare('INSERT INTO following (username) VALUES (?)');
 	$query->execute(array($data));
 });
+
+echo 'done';
 
 ?>
